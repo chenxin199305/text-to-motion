@@ -1,4 +1,4 @@
-name: text2motion_pub
+name: text2motion
 channels:
   - pytorch
   - defaults
