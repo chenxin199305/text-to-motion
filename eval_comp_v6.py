@@ -13,13 +13,20 @@ from data.dataset import Text2MotionDataset, collate_fn
 from scripts.motion_process import *
 from utils.word_vectorizer import WordVectorizer, POS_enumerator
 
+
 def plot_t2m(data, save_dir, captions):
+    # 1. 反标准化处理
     data = dataset.inv_transform(data)
 
-    # print(ep_curves.shape)
+    # 2. 对每个样本生成动画
     for i, (caption, joint_data) in enumerate(zip(captions, data)):
+        # 3. 从RIC格式恢复关节数据
         joint = recover_from_ric(torch.from_numpy(joint_data).float(), opt.joints_num).numpy()
-        save_path = '%s_%02d'%(save_dir, i)
+
+        # 4. 生成保存路径
+        save_path = '%s_%02d' % (save_dir, i)
+
+        # 5. 生成3D动作动画
         plot_3d_motion(save_path + '.mp4', paramUtil.t2m_kinematic_chain, joint, title=caption, fps=20)
 
 
@@ -35,6 +42,7 @@ def loadDecompModel(opt):
 
 
 def build_models(opt):
+    # 1. 文本编码器 (BiGRU)
     if opt.text_enc_mod == 'bigru':
         text_encoder = TextEncoderBiGRU(word_size=dim_word,
                                         pos_size=dim_pos_ohot,
@@ -44,23 +52,26 @@ def build_models(opt):
     else:
         raise Exception("Text Encoder Mode not Recognized!!!")
 
+    # 2. 序列先验网络
     seq_prior = TextDecoder(text_size=text_size,
                             input_size=opt.dim_att_vec + opt.dim_movement_latent,
                             output_size=opt.dim_z,
                             hidden_size=opt.dim_pri_hidden,
                             n_layers=opt.n_layers_pri)
 
-
+    # 3. 序列解码器
     seq_decoder = TextVAEDecoder(text_size=text_size,
                                  input_size=opt.dim_att_vec + opt.dim_z + opt.dim_movement_latent,
                                  output_size=opt.dim_movement_latent,
                                  hidden_size=opt.dim_dec_hidden,
                                  n_layers=opt.n_layers_dec)
 
+    # 4. 注意力层
     att_layer = AttLayer(query_dim=opt.dim_pos_hidden,
                          key_dim=text_size,
                          value_dim=opt.dim_att_vec)
 
+    # 5. 动作编码器/解码器
     movement_enc = MovementConvEncoder(dim_pose - 4, opt.dim_movement_enc_hidden, opt.dim_movement_latent)
     movement_dec = MovementConvDecoder(opt.dim_movement_latent, opt.dim_movement_dec_hidden, dim_pose)
 
@@ -70,13 +81,12 @@ def build_models(opt):
     return text_encoder, seq_prior, seq_decoder, att_layer, movement_enc, movement_dec
 
 
-
 if __name__ == '__main__':
     parser = TestOptions()
     opt = parser.parse()
     opt.do_denoise = True
 
-    opt.device = torch.device("cpu" if opt.gpu_id==-1 else "cuda:" + str(opt.gpu_id))
+    opt.device = torch.device("cpu" if opt.gpu_id == -1 else "cuda:" + str(opt.gpu_id))
     torch.autograd.set_detect_anomaly(True)
 
     opt.save_root = pjoin(opt.checkpoints_dir, opt.dataset_name, opt.name)
@@ -109,7 +119,6 @@ if __name__ == '__main__':
     else:
         raise KeyError('Dataset Does Not Exist')
 
-
     text_enc, seq_pri, seq_dec, att_layer, mov_enc, mov_dec = build_models(opt)
     # mov_enc, mov_dec = loadDecompModel(opt)
 
@@ -118,7 +127,7 @@ if __name__ == '__main__':
     dataset = Text2MotionDataset(opt, mean, std, split_file, w_vectorizer)
     dataset.reset_max_len(opt.start_mov_len * opt.unit_length)
     epoch, it, sub_ep, schedule_len = trainer.load(pjoin(opt.model_dir, opt.which_epoch + '.tar'))
-    print('Loading model: Epoch %03d Schedule_len %03d'%(epoch, schedule_len))
+    print('Loading model: Epoch %03d Schedule_len %03d' % (epoch, schedule_len))
     trainer.eval_mode()
     trainer.to(opt.device)
     # mov_enc.to(opt.device)
@@ -139,9 +148,9 @@ if __name__ == '__main__':
     result_dict = {}
     with torch.no_grad():
         for i, data in enumerate(data_loader):
-            print('%02d_%03d'%(i, opt.num_results))
+            print('%02d_%03d' % (i, opt.num_results))
             word_emb, pos_ohot, caption, cap_lens, motions, m_lens = data
-            name = 'L%03dC%03d'%(m_lens[0], i)
+            name = 'L%03dC%03d' % (m_lens[0], i)
             item_dict = {'caption': caption,
                          'length': m_lens[0],
                          'gt_motion': motions.numpy()}
@@ -167,14 +176,14 @@ if __name__ == '__main__':
                     length = torch.multinomial(pred_dis, opt.batch_size, replacement=True)
                     # print(length.item())
                     m_lens = length * opt.unit_length
-                pred_motions, _, att_wgts = trainer.generate(word_emb, pos_ohot, cap_lens, m_lens, m_lens[0]//opt.unit_length, dim_pose)
+                pred_motions, _, att_wgts = trainer.generate(word_emb, pos_ohot, cap_lens, m_lens, m_lens[0] // opt.unit_length, dim_pose)
                 # trainer.forward(data, 0, m_lens[0]//opt.unit_length)
                 # pred_motions = trainer.pred_motions.view(opt.batch_size, m_lens[0], -1)
                 # ep_curves = trainer.ep_curve
                 sub_dict = {}
                 sub_dict['motion'] = pred_motions.cpu().numpy()
                 sub_dict['att_wgts'] = att_wgts.cpu().numpy()
-                item_dict['result_%02d'%t] = sub_dict
+                item_dict['result_%02d' % t] = sub_dict
             result_dict[name] = item_dict
             if i > opt.num_results:
                 break
@@ -182,7 +191,7 @@ if __name__ == '__main__':
     print('Animation Results')
     '''Animate Results'''
     for i, (key, item) in enumerate(result_dict.items()):
-        print('%02d_%03d'%(i, opt.num_results))
+        print('%02d_%03d' % (i, opt.num_results))
         captions = item['caption']
         gt_motions = item['gt_motion']
         joint_save_path = pjoin(opt.joint_dir, key)
@@ -192,7 +201,7 @@ if __name__ == '__main__':
         np.save(pjoin(joint_save_path, 'gt_motions.npy'), gt_motions)
         plot_t2m(gt_motions, pjoin(animation_save_path, 'gt_motion'), captions)
         for t in range(opt.repeat_times):
-            sub_dict = item['result_%02d'%t]
+            sub_dict = item['result_%02d' % t]
             motion = sub_dict['motion']
             # att_wgts = sub_dict['att_wgts']
             np.save(pjoin(joint_save_path, 'gen_motion_%02d_L%03d.npy' % (t, motion.shape[1])), motion)
