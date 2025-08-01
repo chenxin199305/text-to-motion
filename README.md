@@ -146,13 +146,13 @@ python train_comp_v6.py --name Comp_v6_KLD005 --gpu_id 0 --lambda_kld 0.005 --da
 #### HumanML3D
 
 ```sh
-python train_tex_mot_match.py --name text_mot_match --gpu_id 1 --batch_size 8 --dataset_name t2m
+python train_tex_mot_match.py --name text_mot_match --gpu_id 0 --batch_size 8 --dataset_name t2m
 ```
 
 #### KIT-ML
 
 ```sh
-python train_tex_mot_match.py --name text_mot_match --gpu_id 1 --batch_size 8 --dataset_name kit
+python train_tex_mot_match.py --name text_mot_match --gpu_id 0 --batch_size 8 --dataset_name kit
 ```
 
 ## Generating and Animating 3D Motions (HumanML3D)
@@ -160,7 +160,7 @@ python train_tex_mot_match.py --name text_mot_match --gpu_id 1 --batch_size 8 --
 #### Sampling results from test sets
 
 ```sh
-python eval_comp_v6.py --name Comp_v6_KLD01 --est_length --repeat_time 3 --num_results 10 --ext default --gpu_id 1
+python eval_comp_v6.py --name Comp_v6_KLD01 --est_length --repeat_time 3 --num_results 10 --ext default --gpu_id 0
 ```
 
 where 
@@ -173,7 +173,7 @@ This script will results in 3x10 animations under directory
 #### Sampling results from customized descriptions
 
 ```sh
-python gen_motion_script.py --name Comp_v6_KLD01 --text_file input.txt --repeat_time 3 --ext customized --gpu_id 1
+python gen_motion_script.py --name Comp_v6_KLD01 --text_file input.txt --repeat_time 3 --ext customized --gpu_id 0
 ```
 
 This will generate 3 animated motions for each description given in text_file *./input.txt*.
