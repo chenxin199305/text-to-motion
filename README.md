@@ -28,6 +28,10 @@ If you cannot successfully create the environment, here is a list of required li
   tqdm
   ffmpeg = 4.3.1   # Other version may also work but are not tested.
   matplotlib = 3.3.1
+  
+  # Jason 2025-08-02:
+  # 由于 Pytorch 版本太老，已无法兼容 RTX 4090 显卡，建议使用以下命令安装最新版本的 Pytorch
+  pip3 install torch torchvision torchaudio -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple
   ```
 
 After all, if you want to generate 3D motions from customized raw texts, you still need to install the language model for spacy.
