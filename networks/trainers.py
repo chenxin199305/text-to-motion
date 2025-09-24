@@ -619,7 +619,10 @@ class CompTrainerV6(object):
         self.loss_mot_rec = self.l1_criterion(self.fake_motions, self.motions)
         self.loss_mov_rec = self.l1_criterion(self.fake_movements, self.movements)
         self.loss_kld = self.kl_criterion(self.mus_post, self.logvars_post, self.mus_pri, self.logvars_pri)
-        self.loss_gen = self.loss_mot_rec * self.opt.lambda_rec_mov + self.loss_mov_rec * self.opt.lambda_rec_mot + self.loss_kld * self.opt.lambda_kld
+
+        self.loss_gen = self.loss_mot_rec * self.opt.lambda_rec_mov \
+                        + self.loss_mov_rec * self.opt.lambda_rec_mot \
+                        + self.loss_kld * self.opt.lambda_kld
 
         loss_logs = OrderedDict({})
         loss_logs['loss_gen'] = self.loss_gen.item()
