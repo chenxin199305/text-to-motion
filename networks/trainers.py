@@ -50,25 +50,54 @@ class DecompTrainerV3(object):
 
     @staticmethod
     def step(opt_list):
+        """
+        执行优化器的步进更新操作
+
+        优化器的工作流程：
+        1. 梯度清零（防止梯度累积）
+        2. 计算损失并进行反向传播（计算梯度）
+        3. 执行参数更新 ← 这就是 step() 的作用！
+        """
         for opt in opt_list:
             opt.step()
 
     def forward(self, batch_data):
+        """
+        前向传播函数
+
+        Args:
+            batch_data: 输入的批次数据，包含运动数据。
+
+        该函数将运动数据传递通过运动编码器和解码器，生成重建的运动数据。
+        """
         motions = batch_data
         self.motions = motions.detach().to(self.device).float()
         self.latents = self.movement_enc(self.motions[..., :-4])
         self.recon_motions = self.movement_dec(self.latents)
 
     def backward(self):
+        """
+        反向传播函数
+
+        该函数计算重建损失、稀疏性损失和平滑性损失，并将它们组合成总损失。
+        """
         self.loss_rec = self.l1_criterion(self.recon_motions, self.motions)
         # self.sml1_criterion(self.recon_motions[:, 1:] - self.recon_motions[:, :-1],
         #                     self.motions[:, 1:] - self.recon_motions[:, :-1])
         self.loss_sparsity = torch.mean(torch.abs(self.latents))
         self.loss_smooth = self.l1_criterion(self.latents[:, 1:], self.latents[:, :-1])
-        self.loss = self.loss_rec + self.loss_sparsity * self.opt.lambda_sparsity + \
+
+        self.loss = self.loss_rec + \
+                    self.loss_sparsity * self.opt.lambda_sparsity + \
                     self.loss_smooth * self.opt.lambda_smooth
 
     def update(self):
+        """
+        更新模型参数
+
+        该函数执行梯度清零、前向传播、损失计算、反向传播和参数更新的步骤。
+        """
+
         # time0 = time.time()
         self.zero_grad([self.opt_movement_enc, self.opt_movement_dec])
         # time1 = time.time()
@@ -134,15 +163,26 @@ class DecompTrainerV3(object):
 
         start_time = time.time()
         total_iters = self.opt.max_epoch * len(train_dataloader)
-        print('Iters Per Epoch, Training: %04d, Validation: %03d' % (len(train_dataloader), len(val_dataloader)))
+
+        print('Iters Per Epoch, Training: %04d, Validation: %03d'
+              % (len(train_dataloader), len(val_dataloader)))
+
         val_loss = 0
         logs = OrderedDict()
+
         while epoch < self.opt.max_epoch:
+
+            # --------------------------------------------------
+
+            print("Training Time:")
+
             # time0 = time.time()
             for i, batch_data in enumerate(train_dataloader):
+                # 设置为训练模式
                 self.movement_dec.train()
                 self.movement_enc.train()
 
+                # 执行前向和后向传播
                 # time1 = time.time()
                 # print('DataLoader Time: %.5f s'%(time1-time0) )
                 self.forward(batch_data)
@@ -152,6 +192,7 @@ class DecompTrainerV3(object):
                 # time3 = time.time()
                 # print('Update Time: %.5f s' % (time3 - time2))
                 # time0 = time3
+
                 for k, v in log_dict.items():
                     if k not in logs:
                         logs[k] = v
@@ -159,6 +200,8 @@ class DecompTrainerV3(object):
                         logs[k] += v
 
                 it += 1
+
+                # 日志记录和模型保存
                 if it % self.opt.log_every == 0:
                     mean_loss = OrderedDict({'val_loss': val_loss})
                     self.logger.scalar_summary('val_loss', val_loss, it)
@@ -172,18 +215,25 @@ class DecompTrainerV3(object):
                     if it % self.opt.save_latest == 0:
                         self.save(pjoin(self.opt.model_dir, 'latest.tar'), epoch, it)
 
+            # --------------------------------------------------
+
+            print("Save Time:")
+
             self.save(pjoin(self.opt.model_dir, 'latest.tar'), epoch, it)
 
             epoch += 1
             if epoch % self.opt.save_every_e == 0:
                 self.save(pjoin(self.opt.model_dir, 'E%04d.tar' % (epoch)), epoch, total_it=it)
 
-            print('Validation time:')
+            # --------------------------------------------------
+
+            print("Validation Time:")
 
             val_loss = 0
             val_rec_loss = 0
             val_sparcity_loss = 0
             val_smooth_loss = 0
+
             with torch.no_grad():
                 for i, batch_data in enumerate(val_dataloader):
                     self.forward(batch_data)
@@ -194,19 +244,26 @@ class DecompTrainerV3(object):
                     val_smooth_loss += self.loss_smooth.item()
                     val_loss += self.loss.item()
 
+            # --------------------------------------------------
+
+            print("Log Time:")
+
             val_loss = val_loss / (len(val_dataloader) + 1)
             val_rec_loss = val_rec_loss / (len(val_dataloader) + 1)
             val_sparcity_loss = val_sparcity_loss / (len(val_dataloader) + 1)
             val_smooth_loss = val_smooth_loss / (len(val_dataloader) + 1)
+
             print('Validation Loss: %.5f Reconstruction Loss: %.5f '
-                  'Sparsity Loss: %.5f Smooth Loss: %.5f' % (val_loss, val_rec_loss, val_sparcity_loss, \
-                                                             val_smooth_loss))
+                  'Sparsity Loss: %.5f Smooth Loss: %.5f'
+                  % (val_loss, val_rec_loss, val_sparcity_loss, val_smooth_loss))
 
             if epoch % self.opt.eval_every_e == 0:
                 data = torch.cat([self.recon_motions[:4], self.motions[:4]], dim=0).detach().cpu().numpy()
                 save_dir = pjoin(self.opt.eval_dir, 'E%04d' % (epoch))
                 os.makedirs(save_dir, exist_ok=True)
                 plot_eval(data, save_dir)
+
+            # --------------------------------------------------
 
 
 # VAE Sequence Decoder/Prior/Posterior latent by latent

@@ -39,6 +39,7 @@ class Text2MotionDataset(data.Dataset):
 
         new_name_list = []
         length_list = []
+
         for name in tqdm(id_list):
             try:
                 motion = np.load(pjoin(opt.motion_dir, name + '.npy'))
@@ -114,11 +115,11 @@ class Text2MotionDataset(data.Dataset):
                     joints_num - 1) * 9] / 1.0
             # local_velocity (B, seq_len, joint_num*3)
             std[4 + (joints_num - 1) * 9: 4 + (joints_num - 1) * 9 + joints_num * 3] = std[
-                                                                                       4 + (joints_num - 1) * 9: 4 + (
-                                                                                               joints_num - 1) * 9 + joints_num * 3] / 1.0
+                                                                                           4 + (joints_num - 1) * 9: 4 + (
+                                                                                                   joints_num - 1) * 9 + joints_num * 3] / 1.0
             # foot contact (B, seq_len, 4)
             std[4 + (joints_num - 1) * 9 + joints_num * 3:] = std[
-                                                              4 + (joints_num - 1) * 9 + joints_num * 3:] / opt.feat_bias
+                                                                  4 + (joints_num - 1) * 9 + joints_num * 3:] / opt.feat_bias
 
             assert 4 + (joints_num - 1) * 9 + joints_num * 3 + 4 == mean.shape[-1]
             np.save(pjoin(opt.meta_dir, 'mean.npy'), mean)
@@ -551,11 +552,11 @@ class MotionDatasetV2(data.Dataset):
                     joints_num - 1) * 9] / 1.0
             # local_velocity (B, seq_len, joint_num*3)
             std[4 + (joints_num - 1) * 9: 4 + (joints_num - 1) * 9 + joints_num * 3] = std[
-                                                                                       4 + (joints_num - 1) * 9: 4 + (
-                                                                                               joints_num - 1) * 9 + joints_num * 3] / 1.0
+                                                                                           4 + (joints_num - 1) * 9: 4 + (
+                                                                                                   joints_num - 1) * 9 + joints_num * 3] / 1.0
             # foot contact (B, seq_len, 4)
             std[4 + (joints_num - 1) * 9 + joints_num * 3:] = std[
-                                                              4 + (joints_num - 1) * 9 + joints_num * 3:] / opt.feat_bias
+                                                                  4 + (joints_num - 1) * 9 + joints_num * 3:] / opt.feat_bias
 
             assert 4 + (joints_num - 1) * 9 + joints_num * 3 + 4 == mean.shape[-1]
             np.save(pjoin(opt.meta_dir, 'mean.npy'), mean)

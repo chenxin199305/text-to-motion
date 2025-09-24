@@ -76,8 +76,25 @@ if __name__ == '__main__':
     train_split_file = pjoin(opt.data_root, 'train.txt')
     val_split_file = pjoin(opt.data_root, 'val.txt')
 
-    movement_enc = MovementConvEncoder(dim_pose - 4, opt.dim_movement_enc_hidden, opt.dim_movement_latent)
-    movement_dec = MovementConvDecoder(opt.dim_movement_latent, opt.dim_movement_dec_hidden, dim_pose)
+    # 编码相对运动，解码完整姿态
+    # 编码阶段专注于学习运动本质：
+    #     去除根节点的全局变换，让模型专注于学习相对肢体运动规律
+    #     避免模型被根节点的大幅度位移干扰
+    #     学习到的运动表示更具泛化性
+    # 解码阶段需要完整输出：
+    #     最终生成的运动必须是完整的、可用的
+    #     包含根节点位置才能在实际3D空间中定位
+    #     下游应用（如动画系统）需要完整的姿态数据
+    # 我们注意到在数据预处理中，原始姿态数据的维度是dim_pose，而在MovementConvEncoder中，输入大小是dim_pose - 4。
+    # 这通常意味着原始姿态数据中有4个维度被去除了。在HumanML3D和KIT-ML数据集中，原始姿态表示可能包含全局位置或方向信息，而局部运动信息则不需要这些。
+    # 具体来说，在HumanML3D数据集中，每个姿态向量可能包含根节点的全局位置和旋转（例如3个位置和1个旋转，或者4个代表全局信息的数值），而其余维度代表局部关节信息。
+    # 在训练运动编码器时，我们可能只关心局部运动，因此去除了全局信息（4个维度），只对局部姿态进行编码。
+    movement_enc = MovementConvEncoder(input_size=dim_pose - 4,
+                                       hidden_size=opt.dim_movement_enc_hidden,
+                                       output_size=opt.dim_movement_latent)
+    movement_dec = MovementConvDecoder(input_size=opt.dim_movement_latent,
+                                       hidden_size=opt.dim_movement_dec_hidden,
+                                       output_size=dim_pose)
 
     all_params = 0
     pc_mov_enc = sum(param.numel() for param in movement_enc.parameters())
@@ -91,6 +108,14 @@ if __name__ == '__main__':
     all_params += pc_mov_dec
 
     trainer = DecompTrainerV3(opt, movement_enc, movement_dec)
+
+    print(
+        f"mean = {mean}\n"
+        f"std = {std}\n"
+        f"train_split_file = {train_split_file}\n"
+        f"val_split_file = {val_split_file}\n"
+        f"Total parameters of model: {all_params}\n"
+    )
 
     train_dataset = MotionDatasetV2(opt, mean, std, train_split_file)
     val_dataset = MotionDatasetV2(opt, mean, std, val_split_file)

@@ -12,12 +12,13 @@ from data.dataset import Text2MotionDataset
 from scripts.motion_process import *
 from utils.word_vectorizer import WordVectorizer, POS_enumerator
 
+
 def plot_t2m(data, save_dir, captions, ep_curves=None):
     data = train_dataset.inv_transform(data)
     # print(ep_curves.shape)
     for i, (caption, joint_data) in enumerate(zip(captions, data)):
         joint = recover_from_ric(torch.from_numpy(joint_data).float(), opt.joints_num).numpy()
-        save_path = pjoin(save_dir, '%02d.mp4'%(i))
+        save_path = pjoin(save_dir, '%02d.mp4' % (i))
         plot_3d_motion(save_path, kinematic_chain, joint, title=caption, fps=fps, radius=radius)
         # print(ep_curve.shape)
         if ep_curves is not None:
@@ -41,6 +42,7 @@ def loadDecompModel(opt):
 
     return movement_enc, movement_dec
 
+
 def build_models(opt):
     if opt.text_enc_mod == 'bigru':
         text_encoder = TextEncoderBiGRU(word_size=dim_word,
@@ -50,7 +52,6 @@ def build_models(opt):
         text_size = opt.dim_text_hidden * 2
     else:
         raise Exception("Text Encoder Mode not Recognized!!!")
-
 
     seq_prior = TextDecoder(text_size=text_size,
                             input_size=opt.dim_att_vec + opt.dim_movement_latent,
@@ -78,7 +79,6 @@ def build_models(opt):
 
     # return text_encoder, text_decoder, att_layer, vae_pri, vae_dec, vae_pos, motion_dis, movement_dis, latent_dis
     return text_encoder, seq_prior, seq_posterior, seq_decoder, att_layer
-
 
 
 if __name__ == '__main__':
@@ -144,6 +144,13 @@ if __name__ == '__main__':
 
     trainer = CompTrainerV6(opt, text_encoder, seq_prior, seq_decoder, att_layer, movement_dec,
                             mov_enc=movement_enc, seq_post=seq_posterior)
+
+    print(
+        f"mean = {mean}\n"
+        f"std = {std}\n"
+        f"train_split_file = {train_split_file}\n"
+        f"val_split_file = {val_split_file}\n"
+    )
 
     train_dataset = Text2MotionDataset(opt, mean, std, train_split_file, w_vectorizer)
     val_dataset = Text2MotionDataset(opt, mean, std, val_split_file, w_vectorizer)
