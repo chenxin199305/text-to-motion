@@ -797,13 +797,12 @@ class CompTrainerV6(object):
 
         self.to(self.device)
 
-        self.opt_text_enc = optim.Adam(self.text_enc.parameters(), lr=self.opt.lr)
-        self.opt_seq_post = optim.Adam(self.seq_post.parameters(), lr=self.opt.lr)
-        self.opt_seq_pri = optim.Adam(self.seq_pri.parameters(), lr=self.opt.lr)
-        self.opt_att_layer = optim.Adam(self.att_layer.parameters(), lr=self.opt.lr)
-        self.opt_seq_dec = optim.Adam(self.seq_dec.parameters(), lr=self.opt.lr)
-
-        self.opt_mov_dec = optim.Adam(self.mov_dec.parameters(), lr=self.opt.lr * 0.1)
+        self.opt_text_enc = optim.Adam(self.text_enc.parameters(), lr=self.opt.lr)  # 为文本编码器（text_enc）设置Adam优化器
+        self.opt_seq_post = optim.Adam(self.seq_post.parameters(), lr=self.opt.lr)  # 为序列后验网络（seq_post）设置Adam优化器
+        self.opt_seq_pri = optim.Adam(self.seq_pri.parameters(), lr=self.opt.lr)  # 为序列先验网络（seq_pri）设置Adam优化器
+        self.opt_att_layer = optim.Adam(self.att_layer.parameters(), lr=self.opt.lr)  # 为注意力层（att_layer）设置Adam优化器
+        self.opt_seq_dec = optim.Adam(self.seq_dec.parameters(), lr=self.opt.lr)  # 为序列解码器（seq_dec）设置Adam优化器
+        self.opt_mov_dec = optim.Adam(self.mov_dec.parameters(), lr=self.opt.lr * 0.1)  # 为运动解码器（mov_dec）设置Adam优化器
 
         epoch = 0
         it = 0
@@ -811,6 +810,8 @@ class CompTrainerV6(object):
             schedule_len = 10
         elif self.opt.dataset_name == 'kit':
             schedule_len = 6
+        else:
+            schedule_len = 1
         sub_ep = 0
 
         if self.opt.is_continue:
@@ -821,16 +822,40 @@ class CompTrainerV6(object):
         start_time = time.time()
         val_loss = 0
         is_continue_and_first = self.opt.is_continue
+
         while invalid:
+
+            # 数据准备阶段
+            # 动态序列长度: 通过reset_max_len调整数据集的序列长度，实现渐进式训练
+            #     当前序列长度 = schedule_len * unit_length
+            #     随着schedule_len增加，模型逐渐学习更长的序列
             train_dataset.reset_max_len(schedule_len * self.opt.unit_length)
             val_dataset.reset_max_len(schedule_len * self.opt.unit_length)
 
-            train_loader = DataLoader(train_dataset, batch_size=self.opt.batch_size, drop_last=True, num_workers=4,
-                                      shuffle=True, collate_fn=collate_fn, pin_memory=True)
-            val_loader = DataLoader(val_dataset, batch_size=self.opt.batch_size, drop_last=True, num_workers=4,
-                                    shuffle=True, collate_fn=collate_fn, pin_memory=True)
-            print("Max_Length:%03d Training Split:%05d Validation Split:%04d" % (schedule_len, len(train_loader), len(val_loader)))
+            train_loader = DataLoader(train_dataset,
+                                      batch_size=self.opt.batch_size,
+                                      drop_last=True,
+                                      num_workers=4,
+                                      shuffle=True,
+                                      collate_fn=collate_fn,
+                                      pin_memory=True)
+            val_loader = DataLoader(val_dataset,
+                                    batch_size=self.opt.batch_size,
+                                    drop_last=True,
+                                    num_workers=4,
+                                    shuffle=True,
+                                    collate_fn=collate_fn,
+                                    pin_memory=True)
+            print("Max_Length:%03d Training Split:%05d Validation Split:%04d"
+                  % (schedule_len, len(train_loader), len(val_loader)))
 
+            # 子周期训练初始化
+            # 验证损失跟踪: min_val_loss记录最佳验证损失，用于早停判断
+            # 早停计数器: stop_cnt记录验证损失未改善的次数
+            # 损失日志: logs用于累积每个子周期的训练损失
+            # 训练模式: 设置模型为训练模式
+            # 恢复训练处理: 如果是继续训练的第一次迭代，重置子周期计数器
+            # 教师强制比率: 使用预设的tf_ratio（可能用于控制训练时使用真实标签的比例）
             min_val_loss = np.inf
             stop_cnt = 0
             logs = OrderedDict()
@@ -843,6 +868,18 @@ class CompTrainerV6(object):
 
                 tf_ratio = self.opt.tf_ratio
 
+                # 训练迭代循环
+                # 时间统计: 记录每个步骤的时间，用于性能分析（注释部分）
+                # 前向传播: 执行模型前向计算，传入当前批数据、教师强制比率和序列长度
+                # 参数更新: update()方法执行反向传播和优化器步骤
+                # 损失累积: 将当前批的损失添加到logs中
+                # 迭代计数: it全局迭代计数器递增
+                # 定期日志记录:
+                #     每log_every次迭代记录一次损失
+                #     记录验证损失和当前序列长度到TensorBoard
+                #     计算平均训练损失并记录
+                #     控制台输出当前训练状态
+                # 定期保存: 每save_latest次迭代保存最新模型
                 time1 = time.time()
                 for i, batch_data in enumerate(train_loader):
                     time2 = time.time()
@@ -858,6 +895,7 @@ class CompTrainerV6(object):
 
                     it += 1
                     if it % self.opt.log_every == 0:
+                        # 日志记录和输出
                         mean_loss = OrderedDict({'val_loss': val_loss})
                         self.logger.scalar_summary('val_loss', val_loss, it)
                         self.logger.scalar_summary('scheduled_length', schedule_len, it)
@@ -865,9 +903,16 @@ class CompTrainerV6(object):
                         for tag, value in logs.items():
                             self.logger.scalar_summary(tag, value / self.opt.log_every, it)
                             mean_loss[tag] = value / self.opt.log_every
+
                         logs = OrderedDict()
-                        print_current_loss(start_time, it, mean_loss, epoch, sub_epoch=sub_epoch, inner_iter=i,
-                                           tf_ratio=tf_ratio, sl_steps=schedule_len)
+                        print_current_loss(start_time,
+                                           it,
+                                           mean_loss,
+                                           epoch,
+                                           sub_epoch=sub_epoch,
+                                           inner_iter=i,
+                                           tf_ratio=tf_ratio,
+                                           sl_steps=schedule_len)
 
                     if it % self.opt.save_latest == 0:
                         self.save(pjoin(self.opt.model_dir, 'latest.tar'), epoch, it, sub_epoch, schedule_len)
@@ -879,19 +924,26 @@ class CompTrainerV6(object):
                     # print('Per Iteration: %5f s' % ((time5 -  time1)))
                     time1 = time5
 
+                # 子周期结束处理
                 self.save(pjoin(self.opt.model_dir, 'latest.tar'), epoch, it, sub_epoch, schedule_len)
 
                 epoch += 1
                 if epoch % self.opt.save_every_e == 0:
-                    self.save(pjoin(self.opt.model_dir, 'E%03d_SE%02d_SL%02d.tar' % (epoch, sub_epoch, schedule_len)),
-                              epoch, total_it=it, sub_ep=sub_epoch, sl_len=schedule_len)
+                    self.save(pjoin(self.opt.model_dir, 'E%03d_SE%02d_SL%02d.tar'
+                                    % (epoch, sub_epoch, schedule_len)),
+                              epoch,
+                              total_it=it,
+                              sub_ep=sub_epoch,
+                              sl_len=schedule_len)
 
+                # 验证阶段
                 print('Validation time:')
 
                 loss_mot_rec = 0
                 loss_mov_rec = 0
                 loss_kld = 0
                 val_loss = 0
+
                 with torch.no_grad():
                     for i, batch_data in enumerate(val_loader):
                         self.forward(batch_data, 0, schedule_len)
@@ -901,13 +953,16 @@ class CompTrainerV6(object):
                         loss_kld += self.loss_kld.item()
                         val_loss += self.loss_gen.item()
 
+                # 计算平均验证损失
                 loss_mot_rec /= len(val_loader) + 1
                 loss_mov_rec /= len(val_loader) + 1
                 loss_kld /= len(val_loader) + 1
                 val_loss /= len(val_loader) + 1
-                print('Validation Loss: %.5f Movement Recon Loss: %.5f Motion Recon Loss: %.5f KLD Loss: %.5f:' %
-                      (val_loss, loss_mov_rec, loss_mot_rec, loss_kld))
 
+                print('Validation Loss: %.5f Movement Recon Loss: %.5f Motion Recon Loss: %.5f KLD Loss: %.5f:'
+                      % (val_loss, loss_mov_rec, loss_mot_rec, loss_kld))
+
+                # 定期评估和生成样本
                 if epoch % self.opt.eval_every_e == 0:
                     reco_data = self.fake_motions[:4]
                     with torch.no_grad():
@@ -920,6 +975,7 @@ class CompTrainerV6(object):
                     os.makedirs(save_dir, exist_ok=True)
                     plot_eval(data, save_dir, captions)
 
+                # 早停判断
                 # if cl_ratio == 1:
                 if val_loss < min_val_loss:
                     min_val_loss = val_loss
