@@ -398,17 +398,26 @@ class CompTrainerV6(object):
         # (batch_size, motion_len, pose_dim)
         self.motions = motions
 
-        '''Movement Encoding'''
+        '''
+        Movement Encoding
+        
+        将原始运动编码为紧凑的 movement 表示
+        使用 detach() 防止梯度回传到预训练的运动编码器
+        初始输入使用零向量，模拟序列生成的起始状态
+        '''
         self.movements = self.mov_enc(self.motions[..., :-4]).detach()
+
         # Initially input a mean vector
-        mov_in = self.mov_enc(
-            torch.zeros((self.motions.shape[0], self.opt.unit_length, self.motions.shape[-1] - 4), device=self.device)
-        ).squeeze(1).detach()
+        mov_in = self.mov_enc(torch.zeros((self.motions.shape[0], self.opt.unit_length, self.motions.shape[-1] - 4), device=self.device)).squeeze(1).detach()
         assert self.movements.shape[1] == mov_len
 
         teacher_force = True if random.random() < tf_ratio else False
 
-        '''Text Encoding'''
+        '''
+        Text Encoding
+        
+        提取文本的序列化表示，为注意力机制提供keys。
+        '''
         # time0 = time.time()
         # text_input = torch.cat([word_emb, pos_ohot], dim=-1)
         word_hids, hidden = self.text_enc(word_emb, pos_ohot, cap_lens)
@@ -439,7 +448,13 @@ class CompTrainerV6(object):
             # print("\t Sequence Measure")
             # print(mov_in.shape)
             mov_tgt = self.movements[:, i]
-            '''Local Attention Vector'''
+
+            '''
+            Local Attention Vector
+            
+            注意力机制 (时间步注意力)
+            每个时间步动态关注不同的文本片段，实现细粒度对齐。
+            '''
             att_vec, _ = self.att_layer(hidden_dec[-1], word_hids)
             query_input.append(hidden_dec[-1])
 
@@ -453,13 +468,27 @@ class CompTrainerV6(object):
                 pos_in = torch.cat([mov_in, mov_tgt, att_vec.detach()], dim=-1)
                 pri_in = torch.cat([mov_in, att_vec.detach()], dim=-1)
 
-            '''Posterior'''
+            '''
+            Posterior
+            
+            后验网络（训练时）
+            后验网络学习真实运动分布，先验网络学习文本条件分布，通过KL散度使两者接近。
+            '''
             z_pos, mu_pos, logvar_pos, hidden_pos = self.seq_post(pos_in, hidden_pos, tta)
 
-            '''Prior'''
+            '''
+            Prior
+            
+            先验网络
+            后验网络学习真实运动分布，先验网络学习文本条件分布，通过KL散度使两者接近。
+            '''
             z_pri, mu_pri, logvar_pri, hidden_pri = self.seq_pri(pri_in, hidden_pri, tta)
 
-            '''Decoder'''
+            '''
+            Decoder
+            
+            解码生成
+            '''
             if eval_mode:
                 dec_in = torch.cat([mov_in, att_vec, z_pri], dim=-1)
             else:
@@ -474,6 +503,10 @@ class CompTrainerV6(object):
             logvars_pri.append(logvar_pri)
             fake_mov_batch.append(fake_mov.unsqueeze(1))
 
+            """
+            教师强制策略
+            平衡暴露偏差问题，逐步从监督学习过渡到自主生成。
+            """
             if teacher_force:
                 mov_in = self.movements[:, i].detach()
             else:
