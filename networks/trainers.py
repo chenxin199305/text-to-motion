@@ -80,6 +80,16 @@ class DecompTrainerV3(object):
         反向传播函数
 
         该函数计算重建损失、稀疏性损失和平滑性损失，并将它们组合成总损失。
+        1. 重建损失 (loss_rec)
+            保证生成质量，确保解码器重建的运动序列与原始运动数据在整体上一致。
+            使用 L1Loss（绝对值差）比较重建运动(recon_motions)与真实运动(motions)，相较于均方误差（MSE），L1Loss对异常值更不敏感，可能生成边缘更清晰的输出。
+        2. 稀疏性损失 (loss_sparsity)
+            优化潜在表示，鼓励潜在编码(latents)尽可能稀疏，促进模型学习更紧凑、更具代表性的特征。
+            计算潜在编码绝对值的均值，作为稀疏性约束；引入lambda_sparsity超参数控制该约束的强度。
+            --> 稀疏性的本质是希望大部分元素为0或接近0，只有少数元素有显著的非零值。
+        3. 平滑性损失 (loss_smooth)
+            提升时间连续性，保证潜在编码在时间维度上平滑变化，从而生成更自然、抖动更少的运动。
+            使用 L1Loss 计算相邻时间步潜在编码（latents[:, 1:] 和 latents[:, :-1]）之间的差异；引入lambda_smooth超参数控制平滑度的重要性。
         """
         self.loss_rec = self.l1_criterion(self.recon_motions, self.motions)
         # self.sml1_criterion(self.recon_motions[:, 1:] - self.recon_motions[:, :-1],
