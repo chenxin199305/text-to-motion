@@ -34,7 +34,9 @@ if __name__ == '__main__':
     parser = TrainTexMotMatchOptions()
     opt = parser.parse()
 
-    opt.device = torch.device("cpu" if opt.gpu_id==-1 else "cuda:" + str(opt.gpu_id))
+    opt.device = "cpu"  # 强制使用CPU
+    # opt.device = torch.device("cpu" if opt.gpu_id==-1 else "cuda:" + str(opt.gpu_id))
+
     torch.autograd.set_detect_anomaly(True)
     if opt.gpu_id != -1:
         # self.opt.gpu_id = int(self.opt.gpu_id)

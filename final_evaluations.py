@@ -14,16 +14,19 @@ from utils.utils import *
 
 from os.path import join as pjoin
 
+
 def plot_t2m(data, save_dir, captions):
     data = gt_dataset.inv_transform(data)
     # print(ep_curves.shape)
     for i, (caption, joint_data) in enumerate(zip(captions, data)):
         joint = recover_from_ric(torch.from_numpy(joint_data).float(), wrapper_opt.joints_num).numpy()
-        save_path = pjoin(save_dir, '%02d.mp4'%(i))
+        save_path = pjoin(save_dir, '%02d.mp4' % (i))
         plot_3d_motion(save_path, paramUtil.t2m_kinematic_chain, joint, title=caption, fps=20)
         # print(ep_curve.shape)
 
+
 torch.multiprocessing.set_sharing_strategy('file_system')
+
 
 def evaluate_matching_score(motion_loaders, file):
     match_score_dict = OrderedDict({})
@@ -72,7 +75,7 @@ def evaluate_matching_score(motion_loaders, file):
 
         line = f'---> [{motion_loader_name}] R_precision: '
         for i in range(len(R_precision)):
-            line += '(top %d): %.4f ' % (i+1, R_precision[i])
+            line += '(top %d): %.4f ' % (i + 1, R_precision[i])
         print(line)
         print(line, file=file, flush=True)
 
@@ -212,7 +215,6 @@ def evaluation(log_file):
                 else:
                     all_metrics['MultiModality'][key] += [item]
 
-
         # print(all_metrics['Diversity'])
         for metric_name, metric_dict in all_metrics.items():
             print('========== %s Summary ==========' % metric_name)
@@ -228,10 +230,9 @@ def evaluation(log_file):
                 elif isinstance(mean, np.ndarray):
                     line = f'---> [{model_name}]'
                     for i in range(len(mean)):
-                        line += '(top %d) Mean: %.4f CInt: %.4f;' % (i+1, mean[i], conf_interval[i])
+                        line += '(top %d) Mean: %.4f CInt: %.4f;' % (i + 1, mean[i], conf_interval[i])
                     print(line)
                     print(line, file=f, flush=True)
-
 
 
 def animation_4_user_study(save_dir):
@@ -249,13 +250,13 @@ def animation_4_user_study(save_dir):
             word_embeddings, pos_one_hots, captions, sent_lens, motions, m_lens, tokens = batch
             motions = motions[:, :m_lens[0]]
             # plot_t2m(motions.cpu().numpy(), save_path, captions)
-            print('-----%d-----'%idx)
+            print('-----%d-----' % idx)
             print(captions)
             print(tokens)
             print(sent_lens)
             print(m_lens)
-            ani_save_path = pjoin(save_dir, 'animation', '%02d'%(idx))
-            joint_save_path = pjoin(save_dir, 'keypoints', '%02d'%(idx))
+            ani_save_path = pjoin(save_dir, 'animation', '%02d' % (idx))
+            joint_save_path = pjoin(save_dir, 'keypoints', '%02d' % (idx))
             os.makedirs(ani_save_path, exist_ok=True)
             os.makedirs(joint_save_path, exist_ok=True)
 
@@ -263,7 +264,7 @@ def animation_4_user_study(save_dir):
             # print(ep_curves.shape)
             joint = recover_from_ric(data.float(), wrapper_opt.joints_num).cpu().numpy()
             joint = motion_temporal_filter(joint)
-            np.save(pjoin(joint_save_path, motion_loader_name+'.npy'), joint)
+            np.save(pjoin(joint_save_path, motion_loader_name + '.npy'), joint)
             # save_path = pjoin(save_dir, '%02d.mp4' % (idx))
             plot_3d_motion(pjoin(ani_save_path, '%s.mp4' % (motion_loader_name)),
                            paramUtil.t2m_kinematic_chain, joint, title=captions[0], fps=20)
@@ -291,7 +292,10 @@ if __name__ == '__main__':
     }
 
     device_id = 3
-    device = torch.device('cuda:%d'%device_id if torch.cuda.is_available() else 'cpu')
+
+    device = "cpu"
+    # device = torch.device('cuda:%d'%device_id if torch.cuda.is_available() else 'cpu')
+
     torch.cuda.set_device(device_id)
 
     mm_num_samples = 100
@@ -303,7 +307,6 @@ if __name__ == '__main__':
     diversity_times = 300
     replication_times = 20
     batch_size = 32
-
 
     # mm_num_samples = 20
     # mm_num_repeats = 1

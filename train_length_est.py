@@ -16,7 +16,9 @@ if __name__ == '__main__':
     parser = TrainLenEstOptions()
     opt = parser.parse()
 
-    opt.device = torch.device("cpu" if opt.gpu_id==-1 else "cuda:" + str(opt.gpu_id))
+    opt.device = "cpu"  # 强制使用CPU
+    # opt.device = torch.device("cpu" if opt.gpu_id==-1 else "cuda:" + str(opt.gpu_id))
+
     torch.autograd.set_detect_anomaly(True)
 
     opt.save_root = pjoin(opt.checkpoints_dir, opt.dataset_name, opt.name)

@@ -34,8 +34,9 @@ def loadDecompModel(opt):
     movement_enc = MovementConvEncoder(dim_pose - 4, opt.dim_movement_enc_hidden, opt.dim_movement_latent)
     movement_dec = MovementConvDecoder(opt.dim_movement_latent, opt.dim_movement_dec_hidden, dim_pose)
 
-    checkpoint = torch.load(pjoin(opt.checkpoints_dir, opt.dataset_name, opt.decomp_name, 'model', 'latest.tar'),
-                            map_location=opt.device)
+    checkpoint = torch.load(
+        pjoin(opt.checkpoints_dir, opt.dataset_name, opt.decomp_name, 'model', 'latest.tar'),
+        map_location=opt.device)
     movement_enc.load_state_dict(checkpoint['movement_enc'])
 
     return movement_enc, movement_dec
@@ -86,8 +87,14 @@ if __name__ == '__main__':
     opt = parser.parse()
     opt.do_denoise = True
 
-    opt.device = torch.device("cpu" if opt.gpu_id == -1 else "cuda:" + str(opt.gpu_id))
+    opt.device = "cpu"  # 强制使用CPU
+    # opt.device = torch.device("cpu" if opt.gpu_id == -1 else "cuda:" + str(opt.gpu_id))
+
     torch.autograd.set_detect_anomaly(True)
+
+    print(
+        f"device of the model: {opt.device}"
+    )
 
     opt.save_root = pjoin(opt.checkpoints_dir, opt.dataset_name, opt.name)
     opt.model_dir = pjoin(opt.save_root, 'model')
@@ -122,12 +129,15 @@ if __name__ == '__main__':
     text_enc, seq_pri, seq_dec, att_layer, mov_enc, mov_dec = build_models(opt)
     # mov_enc, mov_dec = loadDecompModel(opt)
 
-    trainer = CompTrainerV6(opt, text_enc, seq_pri, seq_dec, att_layer, mov_dec, mov_enc=mov_enc)
+    trainer = CompTrainerV6(opt, text_enc, seq_pri, seq_dec, att_layer, mov_dec,
+                            mov_enc=mov_enc)
 
     dataset = Text2MotionDataset(opt, mean, std, split_file, w_vectorizer)
     dataset.reset_max_len(opt.start_mov_len * opt.unit_length)
-    epoch, it, sub_ep, schedule_len = trainer.load(pjoin(opt.model_dir, opt.which_epoch + '.tar'))
+    epoch, it, sub_ep, schedule_len = trainer.load(model_dir=pjoin(opt.model_dir, opt.which_epoch + '.tar'))
+
     print('Loading model: Epoch %03d Schedule_len %03d' % (epoch, schedule_len))
+
     trainer.eval_mode()
     trainer.to(opt.device)
     # mov_enc.to(opt.device)
@@ -135,16 +145,28 @@ if __name__ == '__main__':
 
     if opt.est_length:
         estimator = MotionLenEstimatorBiGRU(dim_word, dim_pos_ohot, 512, num_classes)
-        checkpoints = torch.load(pjoin(opt.checkpoints_dir, opt.dataset_name, 'length_est_bigru', 'model', 'latest.tar'))
+
+        checkpoint_path = pjoin(opt.checkpoints_dir, opt.dataset_name, 'length_est_bigru', 'model', 'latest.tar')
+
+        checkpoints = torch.load(checkpoint_path,
+                                 map_location=opt.device)
+
         estimator.load_state_dict(checkpoints['estimator'])
         estimator.to(opt.device)
         estimator.eval()
 
-    data_loader = DataLoader(dataset, batch_size=opt.batch_size, drop_last=True, num_workers=1,
-                             shuffle=True, collate_fn=collate_fn)
+    data_loader = DataLoader(dataset,
+                             batch_size=opt.batch_size,
+                             drop_last=True,
+                             num_workers=1,
+                             shuffle=True,
+                             collate_fn=collate_fn)
 
     '''Generate Results'''
-    print('Generate Results')
+    print(
+        f"Generate Results"
+    )
+
     result_dict = {}
     with torch.no_grad():
         for i, data in enumerate(data_loader):
@@ -188,8 +210,11 @@ if __name__ == '__main__':
             if i > opt.num_results:
                 break
 
-    print('Animation Results')
     '''Animate Results'''
+    print(
+        f"Animate Results"
+    )
+
     for i, (key, item) in enumerate(result_dict.items()):
         print('%02d_%03d' % (i, opt.num_results))
         captions = item['caption']
