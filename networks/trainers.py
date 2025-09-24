@@ -211,8 +211,40 @@ class DecompTrainerV3(object):
 
 # VAE Sequence Decoder/Prior/Posterior latent by latent
 class CompTrainerV6(object):
+    """
+    A trainer class for a Variational Autoencoder (VAE) model that processes sequences
+    with latent variables. This class handles training, evaluation, and saving/loading
+    of the model components.
+
+    Attributes:
+        opt: Configuration options for the trainer.
+        text_enc: Text encoder module.
+        seq_pri: Sequence prior module.
+        seq_dec: Sequence decoder module.
+        att_layer: Attention layer module.
+        mov_dec: Movement decoder module.
+        mov_enc: Movement encoder module (optional).
+        seq_post: Sequence posterior module (used during training).
+        logger: Logger for recording training metrics.
+        l1_criterion: L1 loss function.
+        gan_criterion: GAN loss function.
+        mse_criterion: Mean Squared Error loss function.
+    """
 
     def __init__(self, args, text_enc, seq_pri, seq_dec, att_layer, mov_dec, mov_enc=None, seq_post=None):
+        """
+        Initializes the CompTrainerV6 class.
+
+        Args:
+            args: Configuration options.
+            text_enc: Text encoder module.
+            seq_pri: Sequence prior module.
+            seq_dec: Sequence decoder module.
+            att_layer: Attention layer module.
+            mov_dec: Movement decoder module.
+            mov_enc: Movement encoder module (optional).
+            seq_post: Sequence posterior module (optional, used during training).
+        """
         self.opt = args
         self.text_enc = text_enc
         self.seq_pri = seq_pri
@@ -232,51 +264,129 @@ class CompTrainerV6(object):
 
     @staticmethod
     def reparametrize(mu, logvar):
+        """
+        Reparameterization trick to sample from a Gaussian distribution.
+
+        Args:
+            mu: Mean of the distribution.
+            logvar: Log variance of the distribution.
+
+        Returns:
+            A sample from the Gaussian distribution.
+        """
         s_var = logvar.mul(0.5).exp_()
         eps = s_var.data.new(s_var.size()).normal_()
         return eps.mul(s_var).add_(mu)
 
     @staticmethod
     def ones_like(tensor, val=1.):
+        """
+        Creates a tensor filled with a specified value, matching the shape of the input tensor.
+
+        Args:
+            tensor: Input tensor.
+            val: Value to fill the tensor with.
+
+        Returns:
+            A tensor filled with the specified value.
+        """
         return torch.FloatTensor(tensor.size()).fill_(val).to(tensor.device).requires_grad_(False)
 
     @staticmethod
     def zeros_like(tensor, val=0.):
+        """
+        Creates a tensor filled with zeros, matching the shape of the input tensor.
+
+        Args:
+            tensor: Input tensor.
+            val: Value to fill the tensor with (default is 0).
+
+        Returns:
+            A tensor filled with zeros.
+        """
         return torch.FloatTensor(tensor.size()).fill_(val).to(tensor.device).requires_grad_(False)
 
     @staticmethod
     def zero_grad(opt_list):
+        """
+        Zeros out the gradients for a list of optimizers.
+
+        Args:
+            opt_list: List of optimizers.
+        """
         for opt in opt_list:
             opt.zero_grad()
 
     @staticmethod
     def clip_norm(network_list):
+        """
+        Clips the gradients of a list of networks to a maximum norm of 0.5.
+
+        Args:
+            network_list: List of networks.
+        """
         for network in network_list:
             clip_grad_norm_(network.parameters(), 0.5)
 
     @staticmethod
     def step(opt_list):
+        """
+        Performs an optimization step for a list of optimizers.
+
+        Args:
+            opt_list: List of optimizers.
+        """
         for opt in opt_list:
             opt.step()
 
     @staticmethod
     def kl_criterion(mu1, logvar1, mu2, logvar2):
+        """
+        Computes the KL divergence between two Gaussian distributions.
+
+        Args:
+            mu1: Mean of the first distribution.
+            logvar1: Log variance of the first distribution.
+            mu2: Mean of the second distribution.
+            logvar2: Log variance of the second distribution.
+
+        Returns:
+            KL divergence value.
+        """
         # KL( N(mu1, sigma2_1) || N(mu_2, sigma2_2))
         # loss = log(sigma2/sigma1) + (sigma1^2 + (mu1 - mu2)^2)/(2*sigma2^2) - 1/2
         sigma1 = logvar1.mul(0.5).exp()
         sigma2 = logvar2.mul(0.5).exp()
-        kld = torch.log(sigma2 / sigma1) + (torch.exp(logvar1) + (mu1 - mu2) ** 2) / (
-                2 * torch.exp(logvar2)) - 1 / 2
+        kld = torch.log(sigma2 / sigma1) + (torch.exp(logvar1) + (mu1 - mu2) ** 2) / (2 * torch.exp(logvar2)) - 1 / 2
         return kld.sum() / mu1.shape[0]
 
     @staticmethod
     def kl_criterion_unit(mu, logvar):
+        """
+        Computes the KL divergence between a Gaussian distribution and a unit Gaussian.
+
+        Args:
+            mu: Mean of the distribution.
+            logvar: Log variance of the distribution.
+
+        Returns:
+            KL divergence value.
+        """
         # KL( N(mu1, sigma2_1) || N(mu_2, sigma2_2))
         # loss = log(sigma2/sigma1) + (sigma1^2 + (mu1 - mu2)^2)/(2*sigma2^2) - 1/2
         kld = ((torch.exp(logvar) + mu ** 2) - logvar - 1) / 2
         return kld.sum() / mu.shape[0]
 
     def forward(self, batch_data, tf_ratio, mov_len, eval_mode=False):
+        """
+        Forward pass of the model.
+
+        Args:
+            batch_data: Input batch data.
+            tf_ratio: Teacher forcing ratio.
+            mov_len: Length of the movement sequence.
+            eval_mode: Whether the model is in evaluation mode (default is False).
+        """
         word_emb, pos_ohot, caption, cap_lens, motions, m_lens = batch_data
         word_emb = word_emb.detach().to(self.device).float()
         pos_ohot = pos_ohot.detach().to(self.device).float()
@@ -381,6 +491,17 @@ class CompTrainerV6(object):
         self.logvars_pri = torch.cat(logvars_pri, dim=0)
 
     def generate(self, word_emb, pos_ohot, cap_lens, m_lens, mov_len, dim_pose):
+        """
+        Generates motion sequences based on input text embeddings and positional encodings.
+
+        Args:
+            word_emb: Word embeddings.
+            pos_ohot: Positional one-hot encodings.
+            cap_lens: Lengths of the captions.
+            m_lens: Lengths of the motion sequences.
+            mov_len: Length of the movement sequence to generate.
+            dim_pose: Dimensionality of the pose representation.
+        """
         word_emb = word_emb.detach().to(self.device).float()
         pos_ohot = pos_ohot.detach().to(self.device).float()
         self.cap_lens = cap_lens
@@ -451,6 +572,12 @@ class CompTrainerV6(object):
         return fake_motions, mus_pri, att_wgts
 
     def backward_G(self):
+        """
+        Backward pass for the generator network, computing the loss components.
+
+        Returns:
+            loss_logs: An ordered dictionary containing the computed loss values.
+        """
         self.loss_mot_rec = self.l1_criterion(self.fake_motions, self.motions)
         self.loss_mov_rec = self.l1_criterion(self.fake_movements, self.movements)
 
@@ -472,6 +599,12 @@ class CompTrainerV6(object):
         #                 self.loss_mtgan_G * self.opt.lambda_gan_mt + self.loss_mvgan_G * self.opt.lambda_gan_mv
 
     def update(self):
+        """
+        Updates the model parameters by performing a backward pass and optimization step.
+
+        Returns:
+            loss_logs: An ordered dictionary containing the computed loss values.
+        """
 
         self.zero_grad([self.opt_text_enc, self.opt_seq_dec, self.opt_seq_post,
                         self.opt_seq_pri, self.opt_att_layer, self.opt_mov_dec])
@@ -512,6 +645,9 @@ class CompTrainerV6(object):
         return loss_logs
 
     def to(self, device):
+        """
+        Moves the model components and loss functions to the specified device.
+        """
         if self.opt.is_train:
             self.gan_criterion.to(device)
             self.mse_criterion.to(device)
@@ -525,6 +661,9 @@ class CompTrainerV6(object):
         self.seq_dec.to(device)
 
     def train_mode(self):
+        """
+        Sets the model components to training mode.
+        """
         if self.opt.is_train:
             self.seq_post.train()
         self.mov_enc.eval()
@@ -537,6 +676,9 @@ class CompTrainerV6(object):
         self.seq_dec.train()
 
     def eval_mode(self):
+        """
+        Sets the model components to evaluation mode.
+        """
         if self.opt.is_train:
             self.seq_post.eval()
         self.mov_enc.eval()
@@ -549,6 +691,9 @@ class CompTrainerV6(object):
         self.seq_dec.eval()
 
     def save(self, file_name, ep, total_it, sub_ep, sl_len):
+        """
+        Saves the model state to a file.
+        """
         state = {
             # 'latent_dis': self.latent_dis.state_dict(),
             # 'motion_dis': self.motion_dis.state_dict(),
@@ -578,6 +723,9 @@ class CompTrainerV6(object):
         return
 
     def load(self, model_dir):
+        """
+        Loads the model state from a file.
+        """
 
         print(
             f"Trainer loading the model from {model_dir} to device {self.device}"
@@ -605,6 +753,10 @@ class CompTrainerV6(object):
         return checkpoint['ep'], checkpoint['total_it'], checkpoint['sub_ep'], checkpoint['sl_len']
 
     def train(self, train_dataset, val_dataset, plot_eval):
+        """
+        Main training loop for the model.
+        """
+
         self.to(self.device)
 
         self.opt_text_enc = optim.Adam(self.text_enc.parameters(), lr=self.opt.lr)
