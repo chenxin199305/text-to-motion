@@ -19,7 +19,7 @@ def plot_t2m(data, save_dir):
     for i in range(len(data)):
         joint_data = data[i]
         joint = recover_from_ric(torch.from_numpy(joint_data).float(), opt.joints_num).numpy()
-        save_path = pjoin(save_dir, '%02d.mp4'%(i))
+        save_path = pjoin(save_dir, '%02d.mp4' % (i))
         plot_3d_motion(save_path, kinematic_chain, joint, title="None", fps=fps, radius=radius)
 
 
@@ -94,9 +94,18 @@ if __name__ == '__main__':
 
     train_dataset = MotionDatasetV2(opt, mean, std, train_split_file)
     val_dataset = MotionDatasetV2(opt, mean, std, val_split_file)
-    train_loader = DataLoader(train_dataset, batch_size=opt.batch_size, drop_last=True, num_workers=4,
-                              shuffle=True, pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=opt.batch_size, drop_last=True, num_workers=4,
-                            shuffle=True, pin_memory=True)
+
+    train_loader = DataLoader(train_dataset,
+                              batch_size=opt.batch_size,
+                              drop_last=True,
+                              num_workers=4,
+                              shuffle=True,
+                              pin_memory=True)
+    val_loader = DataLoader(val_dataset,
+                            batch_size=opt.batch_size,
+                            drop_last=True,
+                            num_workers=4,
+                            shuffle=True,
+                            pin_memory=True)
 
     trainer.train(train_loader, val_loader, plot_t2m)

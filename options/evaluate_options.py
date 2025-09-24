@@ -8,7 +8,6 @@ class TestOptions(BaseOptions):
         self.parser.add_argument('--start_mov_len', type=int, default=10)
         self.parser.add_argument('--est_length', action="store_true", help="Whether to use sampled motion length")
 
-
         self.parser.add_argument('--repeat_times', type=int, default=3, help="Number of generation rounds for each text description")
         self.parser.add_argument('--split_file', type=str, default='test.txt')
         self.parser.add_argument('--text_file', type=str, default="./input.txt", help='Path of text description for motion generation')

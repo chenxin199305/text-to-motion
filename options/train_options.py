@@ -1,6 +1,7 @@
 from options.base_options import BaseOptions
 import argparse
 
+
 class TrainCompOptions(BaseOptions):
     def initialize(self):
         BaseOptions.initialize(self)
@@ -34,18 +35,15 @@ class TrainDecompOptions():
     def __init__(self):
         self.parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
         self.parser.add_argument('--name', type=str, default="test", help='Name of this trial')
-        self.parser.add_argument("--gpu_id", type=int, default=-1,
-                                 help='GPU id')
+        self.parser.add_argument("--gpu_id", type=int, default=-1, help='GPU id')
 
         self.parser.add_argument('--dataset_name', type=str, default='kit', help='Dataset Name')
         self.parser.add_argument('--checkpoints_dir', type=str, default='./checkpoints', help='models are saved here')
 
         self.parser.add_argument("--window_size", type=int, default=40, help="Length of motion clips for reconstruction")
 
-        self.parser.add_argument('--dim_movement_enc_hidden', type=int, default=512,
-                                 help='Dimension of hidden in AutoEncoder(encoder)')
-        self.parser.add_argument('--dim_movement_dec_hidden', type=int, default=512,
-                                 help='Dimension of hidden in AutoEncoder(decoder)')
+        self.parser.add_argument('--dim_movement_enc_hidden', type=int, default=512, help='Dimension of hidden in AutoEncoder(encoder)')
+        self.parser.add_argument('--dim_movement_dec_hidden', type=int, default=512, help='Dimension of hidden in AutoEncoder(decoder)')
         self.parser.add_argument('--dim_movement_latent', type=int, default=512, help='Dimension of motion snippet')
 
         self.parser.add_argument('--batch_size', type=int, default=128, help='Batch size')
@@ -92,7 +90,6 @@ class TrainLenEstOptions():
         self.parser.add_argument('--estimator_mod', type=str, default='bigru')
         self.parser.add_argument('--feat_bias', type=float, default=5, help='Layers of GRU')
 
-
         self.parser.add_argument('--lr', type=float, default=1e-4, help='Layers of GRU')
 
         self.parser.add_argument('--is_continue', action="store_true", help='Training iterations')
@@ -107,6 +104,7 @@ class TrainLenEstOptions():
         self.opt.is_train = True
         args = vars(self.opt)
         return self.opt
+
 
 class TrainTexMotMatchOptions():
     def __init__(self):
