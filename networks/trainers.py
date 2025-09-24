@@ -391,6 +391,7 @@ class CompTrainerV6(object):
         word_emb = word_emb.detach().to(self.device).float()
         pos_ohot = pos_ohot.detach().to(self.device).float()
         motions = motions.detach().to(self.device).float()
+
         self.cap_lens = cap_lens
         self.caption = caption
 
@@ -610,14 +611,16 @@ class CompTrainerV6(object):
 
         Returns:
             loss_logs: An ordered dictionary containing the computed loss values.
+
+        loss_mot_rec: 原始运动空间重构损失
+        loss_mov_rec: 编码运动空间重构损失
+        loss_kld: 潜在空间分布对齐损失
         """
         self.loss_mot_rec = self.l1_criterion(self.fake_motions, self.motions)
         self.loss_mov_rec = self.l1_criterion(self.fake_movements, self.movements)
-
         self.loss_kld = self.kl_criterion(self.mus_post, self.logvars_post, self.mus_pri, self.logvars_pri)
+        self.loss_gen = self.loss_mot_rec * self.opt.lambda_rec_mov + self.loss_mov_rec * self.opt.lambda_rec_mot + self.loss_kld * self.opt.lambda_kld
 
-        self.loss_gen = self.loss_mot_rec * self.opt.lambda_rec_mov + self.loss_mov_rec * self.opt.lambda_rec_mot + \
-                        self.loss_kld * self.opt.lambda_kld
         loss_logs = OrderedDict({})
         loss_logs['loss_gen'] = self.loss_gen.item()
         loss_logs['loss_mot_rec'] = self.loss_mot_rec.item()
@@ -625,11 +628,6 @@ class CompTrainerV6(object):
         loss_logs['loss_kld'] = self.loss_kld.item()
 
         return loss_logs
-        # self.loss_gen = self.loss_rec_mov
-
-        # self.loss_gen = self.loss_rec_mov * self.opt.lambda_rec_mov + self.loss_rec_mot + \
-        #                 self.loss_kld * self.opt.lambda_kld + \
-        #                 self.loss_mtgan_G * self.opt.lambda_gan_mt + self.loss_mvgan_G * self.opt.lambda_gan_mv
 
     def update(self):
         """
@@ -788,6 +786,10 @@ class CompTrainerV6(object):
     def train(self, train_dataset, val_dataset, plot_eval):
         """
         Main training loop for the model.
+
+        避免长序列训练的梯度不稳定
+        逐步学习长期依赖关系
+        提高训练效率和稳定性
         """
 
         self.to(self.device)
