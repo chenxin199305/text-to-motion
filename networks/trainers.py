@@ -1061,8 +1061,18 @@ class CompTrainerV6(object):
 
 
 class LengthEstTrainer(object):
+    """
+    长度估计器训练器
+    """
 
     def __init__(self, args, estimator):
+        """
+        初始化长度估计器训练器
+
+        Args:
+            args: 配置参数
+            estimator: 长度估计器模型
+        """
         self.opt = args
         self.estimator = estimator
         self.device = args.device
@@ -1073,12 +1083,33 @@ class LengthEstTrainer(object):
             self.mul_cls_criterion = torch.nn.CrossEntropyLoss()
 
     def resume(self, model_dir):
+        """
+        恢复模型状态
+
+        Args:
+            model_dir: 模型文件路径
+
+        Returns:
+            epoch: 恢复的训练轮数
+            iter: 恢复的迭代次数
+        """
         checkpoints = torch.load(model_dir, map_location=self.device)
         self.estimator.load_state_dict(checkpoints['estimator'])
         self.opt_estimator.load_state_dict(checkpoints['opt_estimator'])
         return checkpoints['epoch'], checkpoints['iter']
 
     def save(self, model_dir, epoch, niter):
+        """
+        保存模型状态
+
+        Args:
+            model_dir: 模型文件路径
+            epoch: 当前训练轮数
+            niter: 当前迭代次数
+
+        Returns:
+            None
+        """
         state = {
             'estimator': self.estimator.state_dict(),
             'opt_estimator': self.opt_estimator.state_dict(),
@@ -1089,20 +1120,48 @@ class LengthEstTrainer(object):
 
     @staticmethod
     def zero_grad(opt_list):
+        """
+        优化器梯度清零
+
+        Args:
+            opt_list: 优化器列表
+        """
         for opt in opt_list:
             opt.zero_grad()
 
     @staticmethod
     def clip_norm(network_list):
+        """
+        裁切梯度范数
+
+        Args:
+            network_list: 网络列表
+        """
         for network in network_list:
             clip_grad_norm_(network.parameters(), 0.5)
 
     @staticmethod
     def step(opt_list):
+        """
+        执行优化器步骤
+
+        Args:
+            opt_list: 优化器列表
+        """
         for opt in opt_list:
             opt.step()
 
     def train(self, train_dataloader, val_dataloader):
+        """
+        主训练循环
+
+        Args:
+            train_dataloader: 训练数据加载器
+            val_dataloader: 验证数据加载器
+
+        Returns:
+            None
+        """
         self.estimator.to(self.device)
 
         self.opt_estimator = optim.Adam(self.estimator.parameters(), lr=self.opt.lr)

@@ -11,7 +11,6 @@ from scripts.motion_process import *
 from torch.utils.data import DataLoader
 from utils.word_vectorizer import WordVectorizer, POS_enumerator
 
-
 if __name__ == '__main__':
     parser = TrainLenEstOptions()
     opt = parser.parse()
@@ -70,9 +69,19 @@ if __name__ == '__main__':
     train_dataset = Text2MotionDataset(opt, mean, std, train_split_file, w_vectorizer)
     val_dataset = Text2MotionDataset(opt, mean, std, val_split_file, w_vectorizer)
 
-    train_loader = DataLoader(train_dataset, batch_size=opt.batch_size, drop_last=True, num_workers=4,
-                              shuffle=True, collate_fn=collate_fn, pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=opt.batch_size, drop_last=True, num_workers=4,
-                            shuffle=True, collate_fn=collate_fn, pin_memory=True)
+    train_loader = DataLoader(train_dataset,
+                              batch_size=opt.batch_size,
+                              drop_last=True,
+                              num_workers=4,
+                              shuffle=True,
+                              collate_fn=collate_fn,
+                              pin_memory=True)
+    val_loader = DataLoader(val_dataset,
+                            batch_size=opt.batch_size,
+                            drop_last=True,
+                            num_workers=4,
+                            shuffle=True,
+                            collate_fn=collate_fn,
+                            pin_memory=True)
 
     trainer.train(train_loader, val_loader)
